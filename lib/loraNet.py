@@ -6,11 +6,8 @@ import time
 import _thread
 import struct
 from machine import Timer
-import sys
 
 class LoRaNet:
-
-    BROADCAST_PERIOD = const(10)
 
     def __init__(self, lora, site_id, crypto_key):
         self._lora = lora
@@ -36,7 +33,7 @@ class LoRaNet:
         )
         if self._local_unit:
             _thread.start_new_thread(self._local_unit._monitor, ())
-            Timer.Alarm(self._local_unit._periodic_broadcast, BROADCAST_PERIOD, periodic=True)
+            Timer.Alarm(self._local_unit._periodic_broadcast, self._local_unit._broadcast_period, periodic=True)
 
     def _lora_cb(self, lora):
         events = lora.events()
@@ -192,7 +189,7 @@ class IonoNet(NetUnit):
         self.DI6._value = dis & 1
 
 class LocalUnit:
-    def __init__(self, unit_addr, uinit_io, in_filter=None):
+    def __init__(self, unit_addr, uinit_io, in_filter=None, broadcast_period=30):
         self._unit_addr = unit_addr
         self._io = uinit_io
         if in_filter:
@@ -200,7 +197,8 @@ class LocalUnit:
         else:
             self._filter = self._io.filter()
 
-        self._last_bradcast = None
+        self._broadcast_period = broadcast_period
+        self._last_broadcast = None
 
     def _monitor(self):
         while True:
@@ -212,8 +210,8 @@ class LocalUnit:
                 print("Monitor error:", e)
 
 class IonoLocal(LocalUnit):
-    def __init__(self, unit_addr, iono_io, in_filter=None):
-        super().__init__(unit_addr, iono_io, in_filter)
+    def __init__(self, unit_addr, iono_io, in_filter=None, broadcast_period=30):
+        super().__init__(unit_addr, iono_io, in_filter, broadcast_period)
 
         if iono_io.DI1:
             self._modes_byte = 1
@@ -257,7 +255,7 @@ class IonoLocal(LocalUnit):
                 break
 
     def _periodic_broadcast(self, alarm):
-        if self._last_bradcast == None or time.ticks_diff(self._last_bradcast, time.ticks_ms()) > BROADCAST_PERIOD * 1000:
+        if self._last_broadcast == None or time.ticks_diff(self._last_broadcast, time.ticks_ms()) > self._broadcast_period * 1000 // 2:
             self._broadcast_update()
 
     def _broadcast_update(self):
@@ -284,4 +282,4 @@ class IonoLocal(LocalUnit):
 
         self._lora_net.send(data)
 
-        self._last_bradcast = time.ticks_ms()
+        self._last_broadcast = time.ticks_ms()
