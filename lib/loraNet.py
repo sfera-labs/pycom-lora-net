@@ -84,9 +84,19 @@ class NetUnit:
     def __init__(self, unit_addr):
         self._unit_addr = unit_addr
         self._lora_stats = None
+        self._last_update = None
 
     def lora_stats(self):
         return self._lora_stats
+
+    def _update(self, data):
+        self._last_update = time.ticks_ms()
+
+    def state_age(self):
+        if self._last_update == None:
+            return None
+        else:
+            return time.ticks_diff(self._last_update, time.ticks_ms()) // 1000
 
     def _req_update(self, id, val):
         data = bytearray()
@@ -119,6 +129,8 @@ class IonoNet(NetUnit):
         self.AO1 = NetAttribute(self, 'AO1')
 
     def _update(self, data):
+        super()._update(data)
+
         modes_byte, dos, ao1, dis, a1, a2, a3, a4 = struct.unpack('>BBHBHHHH', data)
 
         mode1 = (modes_byte >> 6) & 3
