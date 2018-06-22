@@ -36,36 +36,42 @@ class LoRaNet:
             Timer.Alarm(self._local_unit._periodic_broadcast, self._local_unit._broadcast_period, periodic=True)
 
     def _lora_cb(self, lora):
-        events = lora.events()
-        if events & LoRa.RX_PACKET_EVENT:
-            p = self._sock.recv(128)
-            print("recv:", p)
-            site_id_len = len(self._site_id)
-            if (len(p) > site_id_len and p[:site_id_len] == self._site_id):
-                iv = p[site_id_len:16 + site_id_len]
-                cipher = AES(self._crypto_key, AES.MODE_CFB, iv)
-                data = cipher.decrypt(p[16 + site_id_len:])
-                print("data:", data)
-                unit_addr = data[0]
-                if unit_addr == 0:
-                    unit = self._net_units[data[1]]
-                    if unit:
-                        unit._update(data[2:])
-                        unit._lora_stats = lora.stats()
+        try:
+            events = lora.events()
+            if events & LoRa.RX_PACKET_EVENT:
+                p = self._sock.recv(128)
+                print("recv:", p)
+                site_id_len = len(self._site_id)
+                if (len(p) > site_id_len and p[:site_id_len] == self._site_id):
+                    iv = p[site_id_len:16 + site_id_len]
+                    cipher = AES(self._crypto_key, AES.MODE_CBC, iv)
+                    data = cipher.decrypt(p[16 + site_id_len:])
+                    print("data:", data)
+                    unit_addr = data[0]
+                    if unit_addr == 0:
+                        unit = self._net_units[data[1]]
+                        if unit:
+                            unit._update(data[2:])
+                            unit._lora_stats = lora.stats()
 
-                elif self._local_unit and self._local_unit._unit_addr == unit_addr:
-                    self._local_unit._update(data[1:])
+                    elif self._local_unit and self._local_unit._unit_addr == unit_addr:
+                        self._local_unit._update(data[1:])
 
-        elif events & LoRa.TX_PACKET_EVENT:
-            print("lora sent")
+            elif events & LoRa.TX_PACKET_EVENT:
+                print("lora sent")
 
-        elif events & LoRa.TX_FAILED_EVENT:
-            print("lora fail")
+            elif events & LoRa.TX_FAILED_EVENT:
+                print("lora fail")
+
+        except Exception as e:
+            print("LoRa CB error:", e)
 
     def send(self, data):
+        pads = (16 - (len(data) % 16)) % 16
+        data += pads * '='
         print("sending:", data)
         iv = crypto.getrandbits(128)
-        cipher = AES(self._crypto_key, AES.MODE_CFB, iv)
+        cipher = AES(self._crypto_key, AES.MODE_CBC, iv)
         self._sock.send(self._site_id + iv + cipher.encrypt(data))
 
 class NetAttribute:
