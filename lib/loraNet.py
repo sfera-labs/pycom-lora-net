@@ -123,45 +123,51 @@ class LoRaNet:
             to._reset_next = time.ticks_ms()
 
     def _recv(self):
-        p = self._sock.recv(128)
-        print("recv:", p)
-        site_id_len = len(self._site_id)
-        if (len(p) >= (site_id_len + 16) and p[:site_id_len] == self._site_id):
-            iv = p[site_id_len:2 + site_id_len] * 8
-            aes = AES(self._crypto_key, AES.MODE_CBC, iv)
-            plain = aes.decrypt(p[2 + site_id_len:])
+        while True:
+            p = self._sock.recv(128)
+            p_len = len(p)
+            if p_len == 0:
+                break
 
-            print("plain:", plain)
+            print("recv:", p)
 
-            to_addr = plain[0]
-            from_addr = plain[1]
+            site_id_len = len(self._site_id)
+            if (p_len >= (site_id_len + 16) and p[:site_id_len] == self._site_id):
+                iv = p[site_id_len:2 + site_id_len] * 8
+                aes = AES(self._crypto_key, AES.MODE_CBC, iv)
+                plain = aes.decrypt(p[2 + site_id_len:])
 
-            if to_addr == from_addr:
-                print("Error: from == to")
-                return
+                print("plain:", plain)
 
-            if from_addr != 0 and to_addr != 0:
-                print("Error: node to node")
-                return
+                to_addr = plain[0]
+                from_addr = plain[1]
 
-            msg_type = plain[2]
-            sent_session = plain[3:11]
-            sent_counter = struct.unpack('>H', plain[11:13])[0]
-            data_len = plain[13]
-            if data_len > 0:
-                data = plain[14:14 + data_len]
-            else:
-                data = None
+                if to_addr == from_addr:
+                    print("Error: from == to")
+                    return
 
-            crc = plain[14 + data_len:14 + data_len + 2]
-            if crc != CRC.crc16(plain[:14 + data_len]):
-                print("Error: crc")
-                return
+                if from_addr != 0 and to_addr != 0:
+                    print("Error: node to node")
+                    return
 
-            if self._unit_addr == to_addr:
-                sender = self._nodes[from_addr]
-                if sender:
-                    self._process_message(sender, msg_type, sent_session, sent_counter, data)
+                msg_type = plain[2]
+                sent_session = plain[3:11]
+                sent_counter = struct.unpack('>H', plain[11:13])[0]
+                data_len = plain[13]
+                if data_len > 0:
+                    data = plain[14:14 + data_len]
+                else:
+                    data = None
+
+                crc = plain[14 + data_len:14 + data_len + 2]
+                if crc != CRC.crc16(plain[:14 + data_len]):
+                    print("Error: crc")
+                    return
+
+                if self._unit_addr == to_addr:
+                    sender = self._nodes[from_addr]
+                    if sender:
+                        self._process_message(sender, msg_type, sent_session, sent_counter, data)
 
     def _process_message(self, sender, msg_type, sent_session, sent_counter, data):
         print("_process_message:", sender._unit_addr, msg_type, sent_session, sent_counter, data)
