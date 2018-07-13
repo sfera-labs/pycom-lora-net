@@ -258,6 +258,8 @@ class LoRaNet:
                 print("RST 4 error: counter")
                 return
 
+            sender._counter_recv = sent_counter
+
             sender._reset_session = None
             sender._reset_next = None
 
