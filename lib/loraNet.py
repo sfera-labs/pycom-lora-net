@@ -154,10 +154,6 @@ class LoRaNet:
                     print("Error: from == to")
                     return
 
-                if from_addr != 0 and to_addr != 0:
-                    print("Error: node to node")
-                    return
-
                 msg_type = plain[2]
                 sent_session = plain[3:11]
                 sent_counter = struct.unpack('>H', plain[11:13])[0]
