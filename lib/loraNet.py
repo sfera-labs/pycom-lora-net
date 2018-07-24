@@ -461,10 +461,27 @@ class IonoRemoteSlave(RemoteSlave):
     def _update_state(self, data):
         modes_byte, dos, ao1, dis, a1, a2, a3, a4 = struct.unpack('>BBHBHHHH', data)
 
-        mode1 = (modes_byte >> 6) & 3
-        mode2 = (modes_byte >> 4) & 3
-        mode3 = (modes_byte >> 2) & 3
-        mode4 = modes_byte & 3
+        mode_di1 = (modes_byte >> 7) & 1
+        mode_di2 = (modes_byte >> 5) & 1
+        mode_di3 = (modes_byte >> 3) & 1
+        mode_di4 = (modes_byte >> 1) & 1
+
+        mode_a1 = (modes_byte >> 6) & 1
+        mode_a2 = (modes_byte >> 4) & 1
+        mode_a3 = (modes_byte >> 2) & 1
+        mode_a4 = modes_byte & 1
+
+        if a1 == 0xffff:
+            a1 = None
+
+        if a2 == 0xffff:
+            a2 = None
+
+        if a3 == 0xffff:
+            a3 = None
+
+        if a4 == 0xffff:
+            a4 = None
 
         self.DO1._value = (dos >> 3) & 1
         self.DO2._value = (dos >> 2) & 1
@@ -473,60 +490,40 @@ class IonoRemoteSlave(RemoteSlave):
 
         self.AO1._value = ao1
 
-        if mode1 == 1:
-            self.DI1._value = (dis >> 5) & 1
-            self.AV1._value = None
-            self.AI1._value = None
-        elif mode1 == 2:
-            self.DI1._value = None
+        self.DI1._value = (dis >> 5) & 1 if mode_di1 == 1 else None
+        self.DI2._value = (dis >> 4) & 1 if mode_di2 == 1 else None
+        self.DI3._value = (dis >> 3) & 1 if mode_di3 == 1 else None
+        self.DI4._value = (dis >> 2) & 1 if mode_di4 == 1 else None
+        self.DI5._value = (dis >> 1) & 1
+        self.DI6._value = dis & 1
+
+        if mode_a1 == 0:
             self.AV1._value = a1
             self.AI1._value = None
         else:
-            self.DI1._value = None
             self.AV1._value = None
             self.AI1._value = a1
 
-        if mode2 == 1:
-            self.DI2._value = (dis >> 4) & 1
-            self.AV2._value = None
-            self.AI2._value = None
-        elif mode2 == 2:
-            self.DI2._value = None
+        if mode_a2 == 0:
             self.AV2._value = a2
             self.AI2._value = None
         else:
-            self.DI2._value = None
             self.AV2._value = None
             self.AI2._value = a2
 
-        if mode3 == 1:
-            self.DI3._value = (dis >> 3) & 1
-            self.AV3._value = None
-            self.AI3._value = None
-        elif mode3 == 2:
-            self.DI3._value = None
+        if mode_a3 == 0:
             self.AV3._value = a3
             self.AI3._value = None
         else:
-            self.DI3._value = None
             self.AV3._value = None
             self.AI3._value = a3
 
-        if mode4 == 1:
-            self.DI4._value = (dis >> 2) & 1
-            self.AV4._value = None
-            self.AI4._value = None
-        elif mode4 == 2:
-            self.DI4._value = None
+        if mode_a4 == 0:
             self.AV4._value = a4
             self.AI4._value = None
         else:
-            self.DI4._value = None
             self.AV4._value = None
             self.AI4._value = a4
-
-        self.DI5._value = (dis >> 1) & 1
-        self.DI6._value = dis & 1
 
     def _get_cmd_data(self):
         mask = 0x00
@@ -559,36 +556,28 @@ class IonoLocalSlave(LocalSlave):
     def __init__(self, net, unit_addr, iono_io, in_filter=None):
         super().__init__(net, unit_addr, iono_io, in_filter)
 
-        if iono_io.DI1:
-            self._modes_byte = 1
-        elif iono_io.AV1:
+        if iono_io.AV1:
             self._modes_byte = 2
         else:
             self._modes_byte = 3
 
         self._modes_byte <<= 2
 
-        if iono_io.DI2:
-            self._modes_byte |= 1
-        elif iono_io.AV2:
+        if iono_io.AV2:
             self._modes_byte |= 2
         else:
             self._modes_byte |= 3
 
         self._modes_byte <<= 2
 
-        if iono_io.DI3:
-            self._modes_byte |= 1
-        elif iono_io.AV3:
+        if iono_io.AV3:
             self._modes_byte |= 2
         else:
             self._modes_byte |= 3
 
         self._modes_byte <<= 2
 
-        if iono_io.DI4:
-            self._modes_byte |= 1
-        elif iono_io.AV4:
+        if iono_io.AV4:
             self._modes_byte |= 2
         else:
             self._modes_byte |= 3
@@ -626,9 +615,9 @@ class IonoLocalSlave(LocalSlave):
         dis |= self._filter.DI5() << 1
         dis |= self._filter.DI6()
 
-        a1 = self._filter.AV1() if self._filter.AV1 else (self._filter.AI1() if self._filter.AI1 else 0)
-        a2 = self._filter.AV2() if self._filter.AV2 else (self._filter.AI2() if self._filter.AI2 else 0)
-        a3 = self._filter.AV3() if self._filter.AV3 else (self._filter.AI3() if self._filter.AI3 else 0)
-        a4 = self._filter.AV4() if self._filter.AV4 else (self._filter.AI4() if self._filter.AI4 else 0)
+        a1 = self._filter.AV1() if self._filter.AV1 else (self._filter.AI1() if self._filter.AI1 else 0xffff)
+        a2 = self._filter.AV2() if self._filter.AV2 else (self._filter.AI2() if self._filter.AI2 else 0xffff)
+        a3 = self._filter.AV3() if self._filter.AV3 else (self._filter.AI3() if self._filter.AI3 else 0xffff)
+        a4 = self._filter.AV4() if self._filter.AV4 else (self._filter.AI4() if self._filter.AI4 else 0xffff)
 
         return struct.pack('>BBHBHHHH', self._modes_byte, dos, ao1, dis, a1, a2, a3, a4)
