@@ -318,8 +318,8 @@ class RemoteSlave(RemoteUnit):
         try:
             if self._cmd_timeout != None:
                 self._cmd_timeout.cancel()
-            self.send(_MSG_CMD, self._get_cmd_data())
             self._cmd_timeout = Timer.Alarm(self._check_cmd_success, 5)
+            self.send(_MSG_CMD, self._get_cmd_data())
 
         except Exception as e:
             print("Command error:", e)
