@@ -348,12 +348,13 @@ class RemoteOutput:
         self._cmd_value = None
         self._remote_slave._outputs.append(self)
 
-    def __call__(self, val=None):
+    def __call__(self, val=None, send_now=True):
         if val is None:
             return self._value
         elif val in self._val_range:
             self._cmd_value = val
-            self._remote_slave._send_cmd()
+            if send_now:
+                self._remote_slave._send_cmd()
 
 class RemoteInput:
     def __init__(self, unit):
